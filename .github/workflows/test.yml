@@ -1,0 +1,23 @@
+name: Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Alpine Linux v3.15 for aarch64
+        uses: jirutka/setup-alpine@v1
+        with:
+          arch: aarch64
+          branch: v3.15
+          packages: python3
+
+      - name: Print arch
+        run: chmod +x arch.py && python3 arch.py
+        shell: alpine.sh {0}    
