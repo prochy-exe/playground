@@ -1,0 +1,5 @@
+GIGABYTE.GigabyteControlCenter
+Zen-Team.Zen-Browser
+Asus.ArmouryCrate
+Google.AndroidStudio
+Google.QuickShare
