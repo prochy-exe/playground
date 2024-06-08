@@ -4,7 +4,7 @@ param (
 
 if ($args -contains "-h") {
     Write-Host "Sample command execution: `n"
-    Write-Host "powershell -File remote_setup.ps1 -publicKey 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQD" -ForegroundColor Cyan
+    Write-Host "powershell -File remote_setup.ps1 -publicKey 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQD'" -ForegroundColor Cyan #this key isn't used, at least not by me xd
     exit
 }
 
@@ -50,7 +50,7 @@ function AddToPath {
 }
 
 # Create a folder
-$folderPath = "C:\Program Files\Tools"
+$folderPath = "C:\Program Files (x86)\Tools"
 if (!(Test-Path $folderPath)) {
     New-Item -Path $folderPath -ItemType Directory | Out-Null
 }
@@ -60,15 +60,15 @@ AddToPath $folderPath
 
 # Download helpers
 $guardContent = "https://raw.githubusercontent.com/prochy-exe/playground/main/command_ssh_guard.bat"
-$pathToGuard = "C:\Program Files\Tools\command_ssh_guard.bat"
+$pathToGuard = "C:\Program Files (x86)\Tools\command_ssh_guard.bat"
 Invoke-WebRequest -Uri $guardContent -OutFile $pathToGuard
 
 $zzzContent = "https://raw.githubusercontent.com/prochy-exe/playground/main/zzz.bat"
-$pathToZzz = "C:\Program Files\Tools\zzz.bat"
+$pathToZzz = "C:\Program Files (x86)\Tools\zzz.bat"
 Invoke-WebRequest -Uri $zzzContent -OutFile $pathToZzz
 
 $offContent = "https://raw.githubusercontent.com/prochy-exe/playground/main/off.bat"
-$pathToOff = "C:\Program Files\Tools\off.bat"
+$pathToOff = "C:\Program Files (x86)\Tools\off.bat"
 Invoke-WebRequest -Uri $offContent -OutFile $pathToOff
 
 # Modify sshd config
