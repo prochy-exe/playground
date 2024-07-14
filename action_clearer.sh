@@ -1,12 +1,19 @@
 #!/bin/sh
 
 repo=$1
-username="Pr0chy"
-if [ $(dpkg-query -W -f='${Status}' jq 2>/dev/null | grep -c "ok installed") -eq 0 ];
-then
-  echo "Installing jQ"
-  sudo apt-get install jq -y;
+username="prochy-exe"
+
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "jq is not installed. Installing jq."
+    if [ -f /etc/os-release ] && grep -q "ID=debian" /etc/os-release; then
+        sudo apt-get install jq -y;
+    else
+        echo "Not a Debian system, please install jq manually."
+        exit
+    fi
 fi
+
 gh api repos/$username/$repo/actions/runs | \
   jq '.workflow_runs[].id' | \
   xargs -n1 -I % gh api repos/$username/$repo/actions/runs/% -X DELETE
