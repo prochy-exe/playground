@@ -3,8 +3,9 @@
 status() {
 	VOLUME=$(pamixer --default-source --get-volume-human)
 	case $VOLUME in
-		"muted") echo "%{T3}%{T3} %{T1}$(pamixer --default-source --get-volume)%%{T1}" ;;
-		*) echo "%{T3}%{T3} %{T1}${VOLUME}%{T1}" ;;
+
+		"muted") echo "{\"text\": \"   $(pamixer --default-source --get-volume)%\", \"tooltip\": \"   $(pamixer --default-source --get-volume)%\", \"class\": \"muted\"}" ;;
+		*) echo "{\"text\": \"  ${VOLUME}\", \"tooltip\": \"  ${VOLUME}\", \"class\": \"unmuted\"}" ;;
 	esac
 }
 
