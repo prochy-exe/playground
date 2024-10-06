@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Image Processor</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }        
+        .image-container {
+            display: flex;
+            flex-wrap: wrap;
+            flex-direction: column;
+            row-gap: 15px;
+            width: 100%;
+        }
+        .image-holder {
+            display: flex;
+            padding: 0; /* remove any padding */
+            margin: 0; /* remove any margins */
+            width: auto; /* let it shrink to fit the image */
+            height: auto; /* let it shrink to fit the image */
+            align-items: center; /* align the content (image) in the center vertically */
+            justify-content: center; /* align the content (image) in the center horizontally */
+        }
+        img {
+            padding: 0;
+            margin: 0;
+            max-width: 40vw;
+            max-height: 40vh;
+        }
+        .image-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center; /* align the content (image) in the center vertically */
+            justify-content: center; /* align the content (image) in the center horizontally */
+        }
+        .selection-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+        }
+        #context-menu {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        #context-menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #context-menu li {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        #context-menu li:hover {
+            background: #f0f0f0;
+        }
+        .options-container {
+            display: flex;
+            flex-shrink: 0;
+            column-gap: 15px;
+        }
+        .site-container {
+            display: flex;
+            flex-shrink: 0;
+            column-gap: 15px;
+        }
+        #selection-options {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="site-container">
+        <div class="options-container">
+            <div>
+                <form id="upload-form" enctype="multipart/form-data">
+                    <input type="file" id="image-upload" name="image" accept="image/*" required><br><br>
+                    
+                    <label for="brightness">Brightness:</label>
+                    <input type="range" id="brightness" name="brightness" min="-100" max="100" step="1" value="1"><br>
+                    
+                    <label for="contrast">Contrast:</label>
+                    <input type="range" id="contrast" name="contrast" min="-100" max="100" step="1" value="1"><br>
+                    
+                    <label for="sharpness">Sharpness:</label>
+                    <input type="range" id="sharpness" name="sharpness" min="-100" max="100" step="1" value="1"><br><br>
+            
+                    <label for="datamosh-checkbox">Datamosh:</label>
+                    <input type="checkbox" id="datamosh-checkbox" name="datamosh-checkbox"><br>
+                    <label for="datamosh-direction">Direction:</label>
+                    <select id="datamosh-direction" name="datamosh-direction">
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                    </select><br>
+                    <label for="datamosh-melt-region-percentage">Melt Region Percentage:</label>
+                    <input type="range" id="datamosh-melt-region-percentage" name="datamosh-melt-region-percentage" min="0" max="100" step="1" value="50"><br>
+                    <label for="datamosh-variation-percentage">Variation percentage:</label>
+                    <input type="range" id="datamosh-variation-percentage" name="datamosh-variation-percentage" min="0" max="100" step="1" value="50"><br>
+                    <label for="datamosh-max-shift">Max Shift:</label>
+                    <input type="range" id="datamosh-max-shift" name="datamosh-max-shift" min="0" max="100" step="1" value="50"><br><br>
+            
+                    <label for="stutter-checkbox">Stutter:</label>
+                    <input type="checkbox" id="stutter-checkbox" name="stutter-checkbox"><br>
+                    <label for="stutter-frames">Frames:</label>
+                    <input type="range" id="stutter-frames" name="stutter-frames" min="0" max="100" step="1" value="10"><br><br>
+            
+                    <label for="pink-purple-checkbox">Pink/Purple:</label>
+                    <input type="checkbox" id="pink-purple-checkbox" name="pink-purple-checkbox"><br><br>
+            
+                    <label for="random-row-shift-checkbox">Random Row Shift:</label>
+                    <input type="checkbox" id="random-row-shift-checkbox" name="random-row-shift-checkbox"><br>
+                    <label for="random-row-shift-vertical-slider">Vertical:</label>
+                    <input type="range" id="random-row-shift-vertical-slider" name="random-row-shift-vertical-slider" min="0" max="100" step="1" value="50"><br>
+                    <label for="random-row-shift-horizontal-slider">Horizontal:</label>
+                    <input type="range" id="random-row-shift-horizontal-slider" name="random-row-shift-horizontal-slider" min="0" max="100" step="1" value="50"><br><br>
+            
+                    <label for="byte-corruption-checkbox">Byte Corruption:</label>
+                    <input type="checkbox" id="byte-corruption-checkbox" name="byte-corruption-checkbox"><br>
+                    <label for="jpeg-header-size-slider">JPEG Header Size:</label>
+                    <input type="range" id="jpeg-header-size-slider" name="jpeg-header-size-slider" min="0" max="100" step="1" value="50"><br>
+                    <label for="byte-corruption-amount-slider">Amount:</label>
+                    <input type="range" id="byte-corruption-amount-slider" name="byte-corruption-amount-slider" min="0" max="100" step="1" value="50"><br><br>
+                </form>
+                <button onclick="restoreDefaults()">Restore defaults</button>
+            </div>
+            <div>
+                <div>
+                    <select id="selection-dropdown" >
+                        <option value="-1">None</option>
+                    </select>
+                    <button id="delete-selection">Delete Selected</button>
+                </div>
+                <br>
+                <div id="selection-options">
+                    <label for="datamosh-selection-checkbox">Datamosh selection:</label>
+                    <input type="checkbox" id="datamosh-selection-checkbox" name="datamosh-selection-checkbox"><br>
+                    <label for="datamosh-selection-direction">Direction:</label>
+                    <select id="datamosh-selection-direction" name="datamosh-direction">
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                    </select><br>
+                    <label for="datamosh-selection-melt-region-percentage">Datamosh Melt Region Percentage:</label>
+                    <input type="range" id="datamosh-selection-melt-region-percentage" name="datamosh-melt-region-percentage" min="0" max="100" step="1" value="50"><br>
+                    <label for="datamosh-selection-variation-percentage">Variation percentage:</label>
+                    <input type="range" id="datamosh-variation-percentage" name="datamosh-variation-percentage" min="0" max="100" step="1" value="50"><br>
+                    <label for="datamosh-selection-max-shift">Max Shift:</label>
+                    <input type="range" id="datamosh-selection-max-shift" name="datamosh-max-shift" min="0" max="100" step="1" value="50"><br><br>
+    
+                    <label for="melt-selection-checkbox">Melt selection:</label>
+                    <input type="checkbox" id="melt-selection-checkbox" name="melt-selection-checkbox"><br>
+                    <label for="melt-selection-direction">Direction:</label>
+                    <select id="melt-selection-direction" name="melt-direction">
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                    </select><br>
+                    <label for="melt-selection-melt-amount">Melt Amount:</label>
+                    <input type="range" id="melt-selection-melt-amount" name="melt-selection-melt-amount" min="0" max="100" step="1" value="20"><br><br>
+    
+                    <label for="corrupt-selection-checkbox">Corrupt selection:</label>
+                    <input type="checkbox" id="corrupt-selection-checkbox" name="corrupt-selection-checkbox"><br>
+                    <label for="corrupt-selection-direction">Direction:</label>
+                    <select id="corrupt-selection-direction" name="melt-direction">
+                        <option value="horizontal">Horizontal</option>
+                        <option value="vertical">Vertical</option>
+                    </select><br>
+                    <label for="corrupt-selection-melt-checkbox">Melt corrupted selection:</label>
+                    <input type="checkbox" id="corrupt-selection-melt-checkbox" name="corrupt-selection-melt-checkbox"><br>
+                </div>
+            </div>
+        </div>
+        <div class="image-container">
+            <div class="image-holder">
+                <img id="original-img" alt="Original Image">
+            </div>
+            <div class="image-holder">
+                <div class="image-wrapper">
+                    <img id="processed-img" alt="Processed Image">
+                    <canvas id="selection-canvas" class="selection-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context menu -->
+    <div id="context-menu">
+        <ul>
+            <li id="open-image">Open Image</li>
+            <li id="save-image">Save Image</li>
+        </ul>
+    </div>
+
+    <script>
+        const originalImg = document.getElementById('original-img');
+        const processedImg = document.getElementById('processed-img');
+        const imageUpload = document.getElementById('image-upload');
+        const brightnessSlider = document.getElementById('brightness');
+        const contrastSlider = document.getElementById('contrast');
+        const sharpnessSlider = document.getElementById('sharpness');
+        const datamoshCheckbox = document.getElementById('datamosh-checkbox');
+        const stutterCheckbox = document.getElementById('stutter-checkbox');
+        const pinkPurpleCheckbox = document.getElementById('pink-purple-checkbox');
+        const randomRowShiftCheckbox = document.getElementById('random-row-shift-checkbox');
+        const datamoshDirection = document.getElementById('datamosh-direction');
+        const datamoshMeltRegionPercentage = document.getElementById('datamosh-melt-region-percentage');
+        const datamoshVariationPercentage = document.getElementById('datamosh-variation-percentage');
+        const datamoshMaxShift = document.getElementById('datamosh-max-shift');
+        const stutterFrames = document.getElementById('stutter-frames');
+        const randomRowShiftVerticalSlider = document.getElementById('random-row-shift-vertical-slider');
+        const randomRowShiftHorizontalSlider = document.getElementById('random-row-shift-horizontal-slider');
+        const byteCorruptionCheckbox = document.getElementById('byte-corruption-checkbox');
+        const jpegHeaderSizeSlider = document.getElementById('jpeg-header-size-slider');
+        const byteCorruptionAmountSlider = document.getElementById('byte-corruption-amount-slider');
+
+        const selectionOptions = document.getElementById('selection-options');
+        const selectionCanvas = document.getElementById('selection-canvas');
+        const ctx = selectionCanvas.getContext('2d');
+        const selectionDropdown = document.getElementById('selection-dropdown');
+        const deleteSelectionButton = document.getElementById('delete-selection');
+        let currentSelectionIndex = 0;
+        let scaledSelections = []; // Array to store scaled selections
+        let realSelections = []; // Array to store scaled selections
+        let startX, startY, isDragging = false;
+        let selection = {};
+        let uploadedImage = null;
+
+        // Show the original image preview when an image is selected
+        imageUpload.onchange = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                uploadedImage = file;
+                originalImg.src = URL.createObjectURL(file);
+                selectionCanvas.style.display = 'block';  // Show canvas after image upload
+                processedImg.onload = resizeCanvas; // Resize the canvas after the image loads
+                updateProcessedImage();  // Update processed image with initial settings
+            }
+        };
+
+        // Function to update the canvas size to match the image
+        const resizeCanvas = () => {
+            selectionCanvas.width = processedImg.offsetWidth;
+            selectionCanvas.height = processedImg.offsetHeight;
+        };
+
+        // Function to scale the selection to real image size
+        const getScaledSelection = () => {
+            const scaleX = originalImg.naturalHeight / processedImg.offsetWidth;
+            const scaleY = originalImg.naturalWidth / processedImg.offsetHeight;
+            const scaledSelection = {
+                x: Math.round(selection.x * scaleX),
+                y: Math.round(selection.y * scaleY),
+                width: Math.round(selection.width * scaleX),
+                height: Math.round(selection.height * scaleY)
+            };
+            return scaledSelection;
+        };
+
+        const getRealSelection = () => {
+            const realSelection = {
+                x: selection.x,
+                y: selection.y,
+                width: selection.width,
+                height: selection.height
+            };
+            return realSelection;
+        };
+
+        // Draw rectangle on canvas based on selection coordinates
+        const drawSelection = () => {
+            ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            if (isDragging) {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(selection.x, selection.y, selection.width, selection.height);
+            }
+        };
+
+        // Event listeners for the selection
+        selectionCanvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) {
+                selectionDropdown.selectedIndex = 0;
+                startX = e.offsetX;
+                startY = e.offsetY;
+                isDragging = true;
+            }
+        });
+
+        selectionCanvas.addEventListener('mousemove', (e) => {
+            if (e.button === 0) {
+                if (isDragging) {
+                    const currentX = e.offsetX;
+                    const currentY = e.offsetY;
+                    selection.x = Math.min(startX, currentX);
+                    selection.y = Math.min(startY, currentY);
+                    selection.width = Math.abs(startX - currentX);
+                    selection.height = Math.abs(startY - currentY);
+                    drawSelection();
+                }
+            }
+        });
+
+        selectionCanvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                isDragging = false;
+                getScaledSelection();  // Get real image coordinates
+            }
+        });
+
+        // Prevent the default context menu from appearing on the canvas
+        selectionCanvas.addEventListener('contextmenu', (event) => {
+            event.preventDefault(); // Prevent default context menu on the canvas
+
+            // Get the mouse position relative to the canvas
+            const rect = selectionCanvas.getBoundingClientRect();
+
+            // Calculate the position of the mouse relative to the image
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            // Create a right-click event for the image
+            const rightClickEvent = new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                clientX: event.clientX, // Use the original mouse position
+                clientY: event.clientY  // Use the original mouse position
+            });
+
+            // Dispatch the right-click event to the image element
+            processedImg.dispatchEvent(rightClickEvent);
+        });
+
+        // Context menu functionality
+        const contextMenu = document.getElementById('context-menu');
+
+        processedImg.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = `${event.pageX}px`;
+            contextMenu.style.top = `${event.pageY}px`;
+        });
+
+        document.addEventListener('click', () => {
+            contextMenu.style.display = 'none'; // Hide context menu on click
+        });
+
+        document.getElementById('open-image').addEventListener('click', () => {
+            const imgSrc = processedImg.src;
+            window.open(imgSrc, '_blank'); // Open image in a new tab
+        });
+
+        document.getElementById('save-image').addEventListener('click', () => {
+            const imgSrc = processedImg.src;
+            const link = document.createElement('a');
+            link.href = imgSrc;
+            link.download = 'processed_image.png'; // Set the default file name
+            link.click(); // Trigger the download
+        });
+
+        // Update processed image in real-time
+        const updateProcessedImage = async () => {
+            if (!uploadedImage) return;
+
+            const formData = new FormData();
+            formData.append('image', uploadedImage);
+            formData.append('brightness', Number(brightnessSlider.value));
+            formData.append('contrast', Number(contrastSlider.value));
+            formData.append('sharpness', Number(sharpnessSlider.value));
+            formData.append('apply_stutter', stutterCheckbox.checked ? 'true' : 'false');
+            formData.append('apply_datamosh', datamoshCheckbox.checked ? 'true' : 'false');
+            formData.append('apply_pink_purple', pinkPurpleCheckbox.checked ? 'true' : 'false');
+            formData.append('apply_random_row_shift', randomRowShiftCheckbox.checked ? 'true' : 'false');
+            formData.append('apply_byte_corruption', byteCorruptionCheckbox.checked ? 'true' : 'false');
+            formData.append('horizontal_shift_percentage', Number(randomRowShiftHorizontalSlider.value));
+            formData.append('vertical_shift_percentage', Number(randomRowShiftVerticalSlider.value));
+            formData.append('corruption_amount', byteCorruptionAmountSlider.value);
+            formData.append('jpeg_header_size', jpegHeaderSizeSlider.value);
+            formData.append('datamosh_direction', datamoshDirection.value);
+            formData.append('datamosh_melt_region_percentage', Number(datamoshMeltRegionPercentage.value));
+            formData.append('datamosh_variation_percentage', Number(datamoshVariationPercentage.value));
+            formData.append('datamosh_max_shift', datamoshMaxShift.value);
+            formData.append('stutter_frames', stutterFrames.value);
+            
+            const response = await fetch('/process', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                processedImg.src = URL.createObjectURL(blob);
+            } else {
+                alert('Failed to process the image');
+            }
+        };
+
+        // Listen for slider changes and update image in real-time
+        brightnessSlider.addEventListener('change', updateProcessedImage);
+        contrastSlider.addEventListener('change', updateProcessedImage);
+        sharpnessSlider.addEventListener('change', updateProcessedImage);
+        datamoshCheckbox.addEventListener('change', updateProcessedImage);
+        stutterCheckbox.addEventListener('change', updateProcessedImage);
+        pinkPurpleCheckbox.addEventListener('change', updateProcessedImage);
+        randomRowShiftCheckbox.addEventListener('change', updateProcessedImage);
+        randomRowShiftHorizontalSlider.addEventListener('change', updateProcessedImage);
+        randomRowShiftVerticalSlider.addEventListener('change', updateProcessedImage);
+        byteCorruptionCheckbox.addEventListener('change', updateProcessedImage);
+        jpegHeaderSizeSlider.addEventListener('change', updateProcessedImage);
+        byteCorruptionAmountSlider.addEventListener('change', updateProcessedImage);
+        datamoshDirection.addEventListener('change', updateProcessedImage);
+        datamoshMeltRegionPercentage.addEventListener('change', updateProcessedImage);
+        datamoshVariationPercentage.addEventListener('change', updateProcessedImage);
+        datamoshMaxShift.addEventListener('change', updateProcessedImage);
+        stutterFrames.addEventListener('change', updateProcessedImage);
+
+        function restoreDefaults() {
+            brightnessSlider.value = 1;
+            contrastSlider.value = 1;
+            sharpnessSlider.value = 1;
+            datamoshCheckbox.checked = false;
+            stutterCheckbox.checked = false;
+            pinkPurpleCheckbox.checked = false;
+            randomRowShiftCheckbox.checked = false;
+            randomRowShiftHorizontalSlider.value = 0;
+            randomRowShiftVerticalSlider.value = 0;
+            byteCorruptionCheckbox.checked = false;
+            jpegHeaderSizeSlider.value = 0;
+            byteCorruptionAmountSlider.value = 50;
+            datamoshDirection.value = 'horizontal';
+            datamoshMeltRegionPercentage.value = 50;
+            datamoshVariationPercentage.value = 50;
+            datamoshMaxShift.value = 50;
+            stutterFrames.value = 10;
+            updateProcessedImage();
+        }
+
+        // Function to add a new selection to the dropdown
+        const addSelectionToDropdown = (selection) => {
+            const option = document.createElement('option');
+            option.text = `Selection ${scaledSelections.length -1 + 1}`;
+            option.value = scaledSelections.length - 1;
+            selectionDropdown.add(option);
+        };
+
+        // Helper function to check if two object are equal
+        function areObjectsEqual(obj1, obj2) {
+            return obj1.x === obj2.x && 
+                   obj1.y === obj2.y &&
+                   obj1.width === obj2.width &&
+                   obj1.height === obj2.height;
+        }
+
+        // Function to handle key presses for Ctrl + A
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'a') {
+                event.preventDefault();
+                const scaledSelection = getScaledSelection();
+                const realSelection = getRealSelection();
+                var selectionExists = false;
+                for (let i = 0; i < scaledSelections.length; i++) {
+                    if (areObjectsEqual(scaledSelections[i], scaledSelection)) {
+                        selectionExists = true;
+                        break;
+                    }
+                }
+                if (!selectionExists) {
+                    scaledSelections.push(scaledSelection);
+                    realSelections.push(realSelection);
+                    addSelectionToDropdown(scaledSelection);
+                    ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                }
+            }
+        });
+
+        // Delete the selected entry
+        deleteSelectionButton.addEventListener('click', () => {
+            const selectedIndex = selectionDropdown.selectedIndex;
+            if (selectedIndex > 0) {
+                scaledSelections.splice(selectedIndex - 1 , 1); // Remove from array
+                realSelections.splice(selectedIndex - 1 , 1); // Remove from array
+                selectionDropdown.remove(selectedIndex); // Remove from dropdown
+            }
+        });
+
+        selectionDropdown.addEventListener('change', () => {
+            const selectedIndex = selectionDropdown.selectedIndex;
+            ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+            if (selectedIndex > 0) {
+                selectionOptions.style.display = 'block';
+                currentSelectionIndex = selectedIndex - 1;
+                realSelection = realSelections[currentSelectionIndex];
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(realSelection.x, realSelection.y, realSelection.width, realSelection.height);
+            }
+        });
+
+    </script>
+</body>
+</html>
