@@ -1,0 +1,112 @@
+{
+    "layer": "bottom", // Waybar at top layer
+    "position": "bottom",
+    "modules-left": ["clock", "custom/media", "cpu", "memory", "temperature"],
+    "modules-center": ["hyprland/workspaces"],
+    // "modules-right": ["custom/weather", "pulseaudio", "custom/cava", "custom/mic", "custom/cava_mic", "power-profiles-daemon", "battery", "tray", "custom/power-menu"], #desktop
+    "modules-right": ["custom/weather", "pulseaudio", "custom/mic", "power-profiles-daemon", "battery", "tray", "custom/power-menu"], //laptop
+    "hyprland/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "active": "",
+            "default": "",
+            "empty": ""
+        },
+        "persistent-workspaces": {
+                "*": 5
+        }
+    },
+    "hyprland/window": {
+        "format": "{}"
+    },
+    "tray": {
+        "spacing": 10
+    },
+    "clock": {
+        "format": "{:%I:%M %p}",
+        "format-alt": "{:%d %B %Y}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+    },
+    "temperature": {
+        "thermal-zone": 0,
+        // "hwmon-path": "/sys/class/hwmon/hwmon1/temp1_input",
+        "critical-threshold": 80,
+        "format": "{icon} {temperatureC}°C",
+        "format-icons": ["", "", "", "", ""]
+    },
+    "cpu": {
+      "interval": 10,
+      "format": "   {usage}%@{avg_frequency} GHz",
+      "on-click": "htop &"
+    },
+    "memory": {
+        "interval": 30,
+        "format": " {used:0.1f} GiB"
+    },
+    "pulseaudio": {
+        "format": "   {volume}%",
+        "format-muted": "  {volume}%",     
+        "on-click": "pamixer -t",
+        "on-click_middle": "/home/prochy/GitHub/playground/linux_scripts/switchaudio.sh",
+        "on-click-right": "pavucontrol &",
+        "scroll-step": 5
+    },
+    "custom/mic": {
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/microphone.sh",
+        "on-click": "pamixer --default-source -t",
+        "return-type": "json",
+        "on-click-right": "todo",
+        "on-click-middle": "todo",
+        "on-scroll-up": "pamixer --default-source -i 5",
+        "on-scroll-down": "pamixer --default-source -d 5"
+    },
+    "battery": {
+      "bat": "BAT0",
+      "adapter": "ADP0",
+      "interval": 60,
+      "states": {
+          "warning": 30,
+          "critical": 15
+      },
+      "format": "{icon}  {capacity}%",
+      "format-warning": "{icon}  {capacity}%",
+      "format-critical": "{icon}  {capacity}%",
+      "format-charging": "<span font-family='Font Awesome 6 Free'></span>  {capacity}%",
+      "format-plugged": "ﮣ  {capacity}%", 
+      "format-full": "ﮣ", 
+      "format-icons": ["󱊡", "󱊢", "󱊣"]
+    },
+    "custom/cava": {
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava.sh"
+    },
+    "custom/cava_mic": {
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava_mic.sh"
+    },
+    "custom/media": {
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/media.sh",
+        "max-length": 20,
+        "on-click": "playerctl -p spotify,vlc,mpv,jellyfin play-pause",
+        "on-scroll-up": "playerctl -p spotify,vlc,mpv,jellyfin volume 0.05+ && /home/prochy/GitHub/playground/linux_scripts/volnotify.sh",
+        "on-scroll-down": "playerctl -p spotify,vlc,mpv,jellyfin volume 0.05- && /home/prochy/GitHub/playground/linux_scripts/volnotify.sh"
+    },
+    "custom/weather": {
+      "exec": "python3 ~/.config/waybar/scripts/weather.py",
+      "restart-interval": 300,
+      "return-type": "json"
+    },
+    "custom/power-menu": {
+        "format": "",
+        "on-click": "bash ~/.config/waybar/scripts/power-menu/powermenu.sh &"
+    },
+    "power-profiles-daemon": {
+        "format": "{icon}",
+        "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
+        "tooltip": true,
+        "format-icons": {
+            "default": "",
+            "performance": "",
+            "balanced": "",
+            "power-saver": ""
+        }
+    }
+}
