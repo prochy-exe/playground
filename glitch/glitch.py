@@ -7,7 +7,6 @@ def apply_stuttery_effect(image, num_frames=10):
     
     image_array = np.array(image)
     height, width, channels = image_array.shape  
-    
     output_image = np.zeros((height, width, channels), dtype=np.uint32)  
     for _ in range(num_frames):
         
@@ -23,9 +22,6 @@ def apply_stuttery_effect(image, num_frames=10):
             shifted_array[:, :offset] = image_array[:, -offset:]
 
             shifted_array[:, offset:] = np.repeat(image_array[:, -1:], -offset, axis=1)
-            
-        else:  
-            shifted_array = image_array.copy()
         
         output_image += shifted_array
     
@@ -35,48 +31,136 @@ def apply_stuttery_effect(image, num_frames=10):
     
     return output_image
 
-def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=0.3, ratio_variation=0.1, max_shift=500):
-    """Applies a datamoshing effect by shifting pixel data in groups with random shifts and start/end points per column/row."""
+def apply_corrupt_effect(image, direction="vertical", enable_melt=True, selection = None):
+    """Corrupts the selection and melts either the bottom rows or right columns of the selection."""
     pixels = np.array(image)
-    height, width, channels = pixels.shape
-    original_pixels = pixels.copy()
+    height, width, _ = pixels.shape
+    datamoshed_pixels = pixels.copy()
+    if selection:
+        x, y, w, h = selection
+
+    if enable_melt:
+        if direction == "vertical":
+            if not selection:
+                for row in range(height):
+                    source_row = random.randint(height)
+                    datamoshed_pixels[row:, x:x + w] = pixels[source_row, x:x + w]
+            else:
+                x, y, w, h = selection
+                for row in range(y, y + h):
+                    if row < height:
+                        source_row = random.randint(y, y + h - 1)
+                        datamoshed_pixels[row:, x:x + w] = pixels[source_row, x:x + w]
+        elif direction == "horizontal":
+            for col in range(x, x + w):
+                if col < width:
+                    source_col = random.randint(x, x + w - 1)
+                    datamoshed_pixels[y:y + h, col:] = np.tile(
+                        pixels[y:y + h, source_col:source_col + 1], (1, width - col, 1)
+                    )
+
+    if direction == "horizontal":
+        if not selection:
+            for row in range(height):
+                source_row = random.randint(height)
+                datamoshed_pixels[row, x:x + w] = pixels[source_row, x:x + w]
+        else:
+            for row in range(y, y + h):
+                if row < height:
+                    source_row = random.randint(y, y + h - 1)
+                    datamoshed_pixels[row, x:x + w] = pixels[source_row, x:x + w]
+    elif direction == "vertical":
+        if not selection:
+            for col in range(width):
+                source_col = random.randint(width)
+                datamoshed_pixels[y:y + h, col] = pixels[y:y + h, source_col]
+        else:
+            for col in range(x, x + w):
+                if col < width:
+                    source_col = random.randint(x, x + w - 1)
+                    datamoshed_pixels[y:y + h, col] = pixels[y:y + h, source_col]
+
+    datamoshed_image = Image.fromarray(np.clip(datamoshed_pixels, 0, 255).astype(np.uint8), 'RGBA')
+    return datamoshed_image
+
+def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=0.3, ratio_variation=0.1, max_shift=500, selection = None):
+    """Applies a datamoshing effect by shifting pixel data in groups with random shifts and start/end points per column/row."""
+    original_pixels = np.array(image)
+    height, width, channels = original_pixels.shape
+    transparent_base = np.zeros((height, width, channels), dtype=np.uint8)
+    pixels = transparent_base.copy()
 
     if direction == "vertical":
-        for x in range(width):        
-            column_melt_start = int(height * (1 - (melt_region_percentage + random.uniform(0, ratio_variation))))
-            column_melt_end = height
-
-            shift_height = random.randint(1, max_shift)
-            
-            if column_melt_start < 0:
-                column_melt_start = 0
-            if column_melt_end > height:
+        if not selection:
+            for x in range(width):        
+                column_melt_start = int(height * (1 - (melt_region_percentage + random.uniform(0, ratio_variation))))
                 column_melt_end = height
-            
-            for y in range(column_melt_start, column_melt_end):
-                source_y = y + shift_height
-                if source_y < height:
-                    pixels[y, x] = original_pixels[source_y, x]  
-                else:
-                    pixels[y, x] = original_pixels[height - 1, x]  
+
+                shift_height = random.randint(1, max_shift)
+                
+                if column_melt_start < 0:
+                    column_melt_start = 0
+                if column_melt_end > height:
+                    column_melt_end = height
+                
+                for y in range(column_melt_start, column_melt_end):
+                    source_y = y + shift_height
+                    if source_y < height:
+                        pixels[y, x] = original_pixels[source_y, x]  
+                    else:
+                        pixels[y, x] = original_pixels[height - 1, x]
+        else:
+            x, y, w, h = selection
+            x_end = min(x + w, width)
+            random_ratio_variation = random.uniform(0, ratio_variation)
+
+            for x_pos in range(x, x_end):
+                column_melt_start = int((y_end - y) * (1 - (melt_region_percentage + random_ratio_variation)))
+                column_melt_end = height
+
+                shift_height = random.randint(1, max_shift)
+
+                for y_pos in range(y + column_melt_start, column_melt_end):
+                    source_y = y_pos + shift_height
+                    if source_y < height:
+                        pixels[y_pos, x_pos] = original_pixels[source_y, x_pos]  
+                    else:
+                        pixels[y_pos, x_pos] = original_pixels[height - 1, x_pos]
 
     elif direction == "horizontal":
-        for y in range(height):
-            row_melt_start = int(width * (1 - (melt_region_percentage + random.uniform(0, ratio_variation))))
-            row_melt_end = width
-            shift_width = random.randint(1, max_shift)
-            
-            if row_melt_start < 0:
-                row_melt_start = 0
-            if row_melt_end > width:
+        if not selection:
+            for y in range(height):
+                row_melt_start = int(width * (1 - (melt_region_percentage + random.uniform(0, ratio_variation))))
                 row_melt_end = width
+                shift_width = random.randint(1, max_shift)
+                
+                if row_melt_start < 0:
+                    row_melt_start = 0
+                if row_melt_end > width:
+                    row_melt_end = width
+                
+                for x in range(row_melt_start, row_melt_end):
+                    source_x = x + shift_width
+                    if source_x < width:
+                        pixels[y, x] = original_pixels[y, source_x]  
+                    else:
+                        pixels[y, x] = original_pixels[y, width - 1]
+        else:
+            x, y, w, h = selection
+            y_end = min(y + h, height)
             
-            for x in range(row_melt_start, row_melt_end):
-                source_x = x + shift_width
-                if source_x < width:
-                    pixels[y, x] = original_pixels[y, source_x]  
-                else:
-                    pixels[y, x] = original_pixels[y, width - 1]  
+            for y_pos in range(y, y_end):
+                row_melt_start = int((x_end - x) * (1 - (melt_region_percentage + random_ratio_variation)))
+                row_melt_end = width
+
+                shift_width = random.randint(1, max_shift)
+
+                for x_pos in range(x + row_melt_start, row_melt_end):
+                    source_x = x_pos + shift_width
+                    if source_x < width:
+                        pixels[y_pos, x_pos] = original_pixels[y_pos, source_x]  
+                    else:
+                        pixels[y_pos, x_pos] = original_pixels[y_pos, width - 1]  
 
     datamoshed_image = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
     
@@ -87,19 +171,21 @@ def random_row_shift(image, horizontal_shift_percentage=0.05, vertical_shift_per
     try: 
         pixels = np.array(image)
         height, width, channels = pixels.shape
-        
+        transparent_base = np.zeros((height, width, channels), dtype=np.uint8)
+
         num_rows_to_shift = max(5, round(height * horizontal_shift_percentage))
-        
+
         row_indices = random.sample(range(height), num_rows_to_shift)
-        shifted_pixels = pixels.copy()
+        shifted_pixels = transparent_base.copy()
+
         horizontal_shift = random.randint(-int(width * vertical_shift_percentage), int(width * vertical_shift_percentage))
+
         for row_index in row_indices:
             if horizontal_shift > 0:
                 shifted_pixels[row_index, :-horizontal_shift] = pixels[row_index, horizontal_shift:]
-                shifted_pixels[row_index, -horizontal_shift:] = pixels[row_index, -horizontal_shift:]  
-            elif horizontal_shift < 0:  
+            elif horizontal_shift < 0:
                 shifted_pixels[row_index, -horizontal_shift:] = pixels[row_index, :-horizontal_shift]
-                shifted_pixels[row_index, :horizontal_shift] = pixels[row_index, :horizontal_shift]  
+
         return Image.fromarray(np.clip(shifted_pixels, 0, 255).astype(np.uint8), 'RGBA')
     except:
         return random_row_shift(image, horizontal_shift_percentage, vertical_shift_percentage)
@@ -306,9 +392,9 @@ def apply_effects(input_image_path, output_image_path):
         else:
             raise ValueError("Unsupported image format. Use JPG, JPEG, or PNG.")
         
-    region_coords = manual_region_selection(image)
+    # region_coords = manual_region_selection(image)
 
-    for rect_coords in region_coords:
+    # for rect_coords in region_coords:
         # image = corrupt_selection(
         #     image = image,
         #     rect_coords = rect_coords,
@@ -323,19 +409,19 @@ def apply_effects(input_image_path, output_image_path):
         #     direction = "horizontal"
         # )
 
-        image = datamosh_selection(
-            image = image,
-            rect_coords = rect_coords,
-            direction = "horizontal",
-            melt_region_percentage = 1,
-            ratio_variation = .05,
-            max_shift = 20        
-        )
+        # image = datamosh_selection(
+        #     image = image,
+        #     rect_coords = rect_coords,
+        #     direction = "horizontal",
+        #     melt_region_percentage = 1,
+        #     ratio_variation = .05,
+        #     max_shift = 20        
+        # )
     
-    # image = apply_stuttery_effect(
-    #     image = image,
-    #     num_frames = 5
-    # )
+    image = apply_stuttery_effect(
+        image = image,
+        num_frames = 5
+    )
     
     # image = apply_datamosh_effect(
     #     image = image,
@@ -369,14 +455,13 @@ def apply_effects(input_image_path, output_image_path):
     #     jpeg_header_size = 50 #increase this if the saving the image causes errors and you are using a jpeg image
     # )
     
-    if img_format == 'JPEG':
-        image = image.convert('RGB')    
+    image = image.convert('RGBA')    
     
-    image.save(output_image_path)
+    image.save(output_image_path, format="png")
 
 #glitch_image_path = sys.argv[1]
-glitch_image_path = "yuno.jpg"
+glitch_image_path = "test.jpg"
 glitch_image_path = os.path.realpath(glitch_image_path)
 glitch_image_name = os.path.basename(glitch_image_path).split('.')
-glitch_image_output = os.path.join(os.path.dirname(glitch_image_path), f"{glitch_image_name[0]}_glitched.{glitch_image_name[1]}")
+glitch_image_output = os.path.join(os.path.dirname(glitch_image_path), f"{glitch_image_name[0]}_glitched.png")
 apply_effects(glitch_image_path, glitch_image_output)
