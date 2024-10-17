@@ -37,54 +37,55 @@ def apply_stuttery_effect(image, num_frames=10):
     
     return output_image
 
-def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30, variation_percentage=10, max_shift=500):
+def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30, variation_percentage=10, max_shift=500, selection = None):
     """Applies a datamoshing effect by shifting pixel data in groups with random shifts and start/end points per column/row."""
     melt_region_percentage = float(melt_region_percentage * 0.01)
     variation_percentage = float(variation_percentage * 0.01)
-    pixels = np.array(image)
-    height, width, channels = pixels.shape
-    original_pixels = pixels.copy()
-
+    original_pixels = np.array(image)
+    height, width, channels = original_pixels.shape
+    transparent_base = np.zeros((height, width, channels), dtype=np.uint8)
+    pixels = transparent_base.copy()
+    if selection:
+        x, y, w, h = selection
+    else:
+        x, y, w, h = 0, 0, width, height
+    
     if direction == "vertical":
-        for x in range(width):        
-            column_melt_start = int(height * (1 - (melt_region_percentage + random.uniform(0, variation_percentage))))
+        x_end = min(x + w, width)
+        random_ratio_variation = random.uniform(0, variation_percentage)
+
+        for x_pos in range(x, x_end):
+            column_melt_start = int((y_end - y) * (1 - (melt_region_percentage + random_ratio_variation)))
             column_melt_end = height
 
             shift_height = random.randint(1, max_shift)
-            
-            if column_melt_start < 0:
-                column_melt_start = 0
-            if column_melt_end > height:
-                column_melt_end = height
-            
-            for y in range(column_melt_start, column_melt_end):
-                source_y = y + shift_height
+
+            for y_pos in range(y + column_melt_start, column_melt_end):
+                source_y = y_pos + shift_height
                 if source_y < height:
-                    pixels[y, x] = original_pixels[source_y, x]  
+                    pixels[y_pos, x_pos] = original_pixels[source_y, x_pos]  
                 else:
-                    pixels[y, x] = original_pixels[height - 1, x]  
+                    pixels[y_pos, x_pos] = original_pixels[height - 1, x_pos]
 
     elif direction == "horizontal":
-        for y in range(height):
-            row_melt_start = int(width * (1 - (melt_region_percentage + random.uniform(0, variation_percentage))))
+        y_end = min(y + h, height)
+        
+        for y_pos in range(y, y_end):
+            row_melt_start = int((x_end - x) * (1 - (melt_region_percentage + random_ratio_variation)))
             row_melt_end = width
-            shift_width = random.randint(1, max_shift)
-            
-            if row_melt_start < 0:
-                row_melt_start = 0
-            if row_melt_end > width:
-                row_melt_end = width
-            
-            for x in range(row_melt_start, row_melt_end):
-                source_x = x + shift_width
-                if source_x < width:
-                    pixels[y, x] = original_pixels[y, source_x]  
-                else:
-                    pixels[y, x] = original_pixels[y, width - 1]  
 
-    datamoshed_image = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
+            shift_width = random.randint(1, max_shift)
+
+            for x_pos in range(x + row_melt_start, row_melt_end):
+                source_x = x_pos + shift_width
+                if source_x < width:
+                    pixels[y_pos, x_pos] = original_pixels[y_pos, source_x]  
+                else:
+                    pixels[y_pos, x_pos] = original_pixels[y_pos, width - 1]
+
+    datamosh_layer = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
     
-    return datamoshed_image
+    return datamosh_layer
 
 def random_row_shift(image, horizontal_shift_percentage=5, vertical_shift_percentage=5):
     """Randomly shifts the contents of a minimum of 5 rows in the image horizontally."""
@@ -142,20 +143,24 @@ def byte_corruption(image, corruption_amount=10, jpeg_header_size=50):
 
     return corrupted_image
 
-def melt_selection(image, rect_coords, melt_amount=5, direction="vertical"):
-    """Melts center x rows or columns from selection."""
-    pixels = np.array(image)
-    x, y, w, h = rect_coords
-    height, width, _ = pixels.shape
-    datamoshed_pixels = pixels.copy()
-
+def apply_melt_effect(image, melt_amount=5, direction="vertical", selection = None):
+    """Melts center x rows or columns."""
+    original_pixels = np.array(image)
+    height, width, channels = original_pixels.shape
+    if selection:
+        x, y, w, h = selection
+    else:
+        x, y, w, h = 0, 0, height, width
+    transparent_base = np.zeros((height, width, channels), dtype=np.uint8)
+    pixels = transparent_base.copy()
+    
     if direction == "vertical":
         center_row = y + h // 2
         for melt_row in range(melt_amount):
             source_row = center_row + melt_row  
             if source_row < height:
                 for row in range(source_row, height):
-                    datamoshed_pixels[row, x:x + w] = pixels[source_row, x:x + w]
+                    pixels[row, x:x + w] = original_pixels[source_row, x:x + w]
 
     elif direction == "horizontal":
         center_col = x + w // 2
@@ -163,92 +168,35 @@ def melt_selection(image, rect_coords, melt_amount=5, direction="vertical"):
             source_col = center_col + melt_col
             if source_col < width:
                 for col in range(source_col, width):
-                    datamoshed_pixels[y:y + h, col] = pixels[y:y + h, source_col]
+                    pixels[y:y + h, col] = original_pixels[y:y + h, source_col]
 
-    datamoshed_image = Image.fromarray(np.clip(datamoshed_pixels, 0, 255).astype(np.uint8), 'RGBA')
-    return datamoshed_image
+    melt_layer = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
+    return melt_layer
 
-
-def corrupt_selection(image, rect_coords, direction="vertical", enable_melt=True):
+def apply_corrupt_effect(image, direction="vertical", selection = None):
     """Corrupts the selection and melts either the bottom rows or right columns of the selection."""
-    pixels = np.array(image)
-    x, y, w, h = rect_coords
-    height, width, _ = pixels.shape
-    datamoshed_pixels = pixels.copy()
-
-    if enable_melt:
-        if direction == "vertical":
-            for row in range(y, y + h):
-                if row < height:
-                    source_row = random.randint(y, y + h - 1)
-                    datamoshed_pixels[row:, x:x + w] = pixels[source_row, x:x + w]
-        elif direction == "horizontal":
-            for col in range(x, x + w):
-                if col < width:
-                    source_col = random.randint(x, x + w - 1)
-                    datamoshed_pixels[y:y + h, col:] = np.tile(
-                        pixels[y:y + h, source_col:source_col + 1], (1, width - col, 1)
-                    )
-
+    original_pixels = np.array(image)
+    height, width, channels = original_pixels.shape
+    if selection:
+        x, y, w, h = selection
+    else:
+        x, y, w, h = 0, 0, height, width
+    transparent_base = np.zeros((height, width, channels), dtype=np.uint8)
+    pixels = transparent_base.copy()
+    
     if direction == "horizontal":
         for row in range(y, y + h):
             if row < height:
                 source_row = random.randint(y, y + h - 1)
-                datamoshed_pixels[row, x:x + w] = pixels[source_row, x:x + w]
+                pixels[row, x:x + w] = original_pixels[source_row, x:x + w]
     elif direction == "vertical":
         for col in range(x, x + w):
             if col < width:
                 source_col = random.randint(x, x + w - 1)
-                datamoshed_pixels[y:y + h, col] = pixels[y:y + h, source_col]
+                pixels[y:y + h, col] = original_pixels[y:y + h, source_col]
 
-    datamoshed_image = Image.fromarray(np.clip(datamoshed_pixels, 0, 255).astype(np.uint8), 'RGBA')
-    return datamoshed_image
-
-def datamosh_selection(image, rect_coords, direction="vertical", melt_region_percentage=30, variation_percentage=10, max_shift=500):
-    """Applies a datamoshing effect by shifting pixel data in a selected region, extending to the bottom or right of the image."""
-    melt_region_percentage = float(melt_region_percentage * 0.01)
-    variation_percentage = float(variation_percentage * 0.01)
-    pixels = np.array(image)
-    height, width, _ = pixels.shape
-    original_pixels = pixels.copy()
-    
-    x, y, w, h = rect_coords
-    
-    x_end = min(x + w, width)
-    y_end = min(y + h, height)
-    random_variation_percentage = random.uniform(0, variation_percentage)
-
-    if direction == "vertical":
-        for x_pos in range(x, x_end):
-            column_melt_start = int((y_end - y) * (1 - (melt_region_percentage + random_variation_percentage)))
-            column_melt_end = height
-
-            shift_height = random.randint(1, max_shift)
-
-            for y_pos in range(y + column_melt_start, column_melt_end):
-                source_y = y_pos + shift_height
-                if source_y < height:
-                    pixels[y_pos, x_pos] = original_pixels[source_y, x_pos]  
-                else:
-                    pixels[y_pos, x_pos] = original_pixels[height - 1, x_pos]  
-
-    elif direction == "horizontal":
-        for y_pos in range(y, y_end):
-            row_melt_start = int((x_end - x) * (1 - (melt_region_percentage + random_variation_percentage)))
-            row_melt_end = width
-
-            shift_width = random.randint(1, max_shift)
-
-            for x_pos in range(x + row_melt_start, row_melt_end):
-                source_x = x_pos + shift_width
-                if source_x < width:
-                    pixels[y_pos, x_pos] = original_pixels[y_pos, source_x]  
-                else:
-                    pixels[y_pos, x_pos] = original_pixels[y_pos, width - 1]  
-
-    datamoshed_image = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
-    
-    return datamoshed_image
+    corrupt_layer = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8), 'RGBA')
+    return corrupt_layer
 
 # Function to apply effects
 def process_image(image):
@@ -305,27 +253,27 @@ def process():
         raise ValueError("Unsupported image format. Use JPG, JPEG, or PNG.")
     
     image = request.files['image'].read()
-    brightness = 1 + request.form.get('brightness', 1)
-    contrast = 1 + request.form.get('contrast', 1)
-    sharpness = 1 + request.form.get('sharpness', 1)
+    brightness = 1 + float(request.form.get('brightness', 0))
+    contrast = 1 + float(request.form.get('contrast', 0))
+    sharpness = 1 + float(request.form.get('sharpness', 0))
     apply_stutter = request.form.get('apply_stutter') == 'true'
     if apply_stutter:
-        stutter_frames = request.form.get('stutter_frames'), 10
+        stutter_frames = int(request.form.get('stutter_frames'), 10)
     apply_datamosh = request.form.get('apply_datamosh') == 'true'
     if apply_datamosh:
         datamosh_direction = request.form.get('datamosh_direction')
-        datamosh_melt_region_percentage = request.form.get('datamosh_melt_region_percentage', 30)
-        datamosh_variation_percentage = request.form.get('datamosh_variation_percentage', 10)
-        datamosh_max_shift = request.form.get('datamosh_max_shift', 500)
+        datamosh_melt_region_percentage = int(request.form.get('datamosh_melt_region_percentage', 30))
+        datamosh_variation_percentage = int(request.form.get('datamosh_variation_percentage', 10))
+        datamosh_max_shift = int(request.form.get('datamosh_max_shift', 500))
     apply_pink_purple = request.form.get('apply_pink_purple') == 'true'
     apply_random_row_shift = request.form.get('apply_random_row_shift') == 'true'
     if apply_random_row_shift:
-        horizontal_shift_percentage = request.form.get('horizontal_shift_percentage', 5)
-        vertical_shift_percentage = request.form.get('vertical_shift_percentage', 5)
+        horizontal_shift_percentage = int(request.form.get('horizontal_shift_percentage', 5))
+        vertical_shift_percentage = int(request.form.get('vertical_shift_percentage', 5))
     apply_byte_corruption = request.form.get('apply_byte_corruption') == 'true'
     if apply_byte_corruption:
-        corruption_amount = request.form.get('corruption_amount', 10)
-        jpeg_header_size = request.form.get('jpeg_header_size', 50)
+        corruption_amount = int(request.form.get('corruption_amount', 10))
+        jpeg_header_size = int(request.form.get('jpeg_header_size', 50))
     
     
     processed_img = process_image(image)
