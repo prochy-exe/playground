@@ -28,7 +28,8 @@ window#waybar.hidden {
 
 /* Rounded ends */
 #temperature,
-#battery {
+#power-profiles-daemon {
+/* #battery {  #laptop */
   border-radius: 0px 12px 12px 0px;
 }
 
@@ -77,6 +78,8 @@ window#waybar.hidden {
   background-color: #ECF9FF;
 }
 
+#custom-cava,
+#custom-cava_mic,
 #pulseaudio,
 #custom-mic {
   color: #81A1C1;  
@@ -225,6 +228,10 @@ label:focus {
 #battery {
   padding-left: 10px;
   padding-right: 10px;
+}
+
+#power-profiles-daemon { /* use when not using the battery indicator */
+  padding-right: 15px;
 }
 
 #custom-cava {
