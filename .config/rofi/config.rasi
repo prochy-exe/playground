@@ -1,0 +1,5 @@
+configuration {
+    show-icons: false;
+    use-hot-keys: true;
+}
+@theme "rounded-common.rasi"

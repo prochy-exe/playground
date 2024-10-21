@@ -3,8 +3,8 @@
     "position": "bottom",
     "modules-left": ["clock", "custom/media", "cpu", "memory", "temperature"],
     "modules-center": ["hyprland/workspaces"],
-    // "modules-right": ["custom/weather", "pulseaudio", "custom/cava", "custom/mic", "custom/cava_mic", "power-profiles-daemon", "battery", "tray", "custom/power-menu"], #desktop
-    "modules-right": ["custom/weather", "pulseaudio", "custom/mic", "power-profiles-daemon", "battery", "tray", "custom/power-menu"], //laptop
+    "modules-right": ["custom/weather", "pulseaudio", "custom/cava", "custom/mic", "custom/cava_mic", "power-profiles-daemon", "tray", "custom/power-menu"], //desktop
+    //"modules-right": ["custom/weather", "pulseaudio", "custom/mic", "power-profiles-daemon", "battery", "tray", "custom/power-menu"], //laptop
     "hyprland/workspaces": {
         "format": "{icon}",
         "format-icons": {
@@ -29,7 +29,7 @@
     },
     "temperature": {
         "thermal-zone": 0,
-        // "hwmon-path": "/sys/class/hwmon/hwmon1/temp1_input",
+        "hwmon-path": "/sys/class/hwmon/hwmon1/temp1_input",
         "critical-threshold": 80,
         "format": "{icon} {temperatureC}°C",
         "format-icons": ["", "", "", "", ""]
@@ -46,8 +46,8 @@
     "pulseaudio": {
         "format": "   {volume}%",
         "format-muted": "  {volume}%",     
-        "on-click": "pamixer -t",
-        "on-click_middle": "/home/prochy/GitHub/playground/linux_scripts/switchaudio.sh",
+        "on-click": "pamixer -t && /home/prochy/GitHub/playground/linux_scripts/volnotify.sh",
+        "on-click_middle": "/home/prochy/GitHub/playground/linux_scripts/switchaudio.sh && /home/prochy/GitHub/playground/linux_scripts/volnotify.sh",
         "on-click-right": "pavucontrol &",
         "scroll-step": 5
     },
@@ -77,10 +77,12 @@
       "format-icons": ["󱊡", "󱊢", "󱊣"]
     },
     "custom/cava": {
-        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava.sh"
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava.sh",
+        "return-type": "text"
     },
     "custom/cava_mic": {
-        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava_mic.sh"
+        "exec": "/home/prochy/GitHub/playground/linux_scripts/cava_mic.sh",
+        "return-type": "text"
     },
     "custom/media": {
         "exec": "/home/prochy/GitHub/playground/linux_scripts/media.sh",
