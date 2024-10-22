@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 
 tmp_dir="/tmp/cliphist"
-rm -rf "$tmp_dir"
-
 if [[ -n "$1" ]]; then
-    cliphist decode <<<"$1" | wl-copy
-    exit
+    paste=1
+else
+    paste=0
 fi
+
+rm -rf "$tmp_dir"
 
 mkdir -p "$tmp_dir"
 
@@ -20,4 +21,17 @@ match(\$0, /^([0-9]+)\s(\[\[\s)?binary.*(jpg|jpeg|png|bmp)/, grp) {
 1
 EOF
 
-cliphist list | gawk "$prog" | rofi -dmenu -display-columns 2 -show-icons
+output=$(cliphist list | gawk "$prog" | rofi -dmenu -display-columns 2 -show-icons -config ~/.config/rofi/config-clipboard.rasi)
+output_status=$?
+
+if [[ $output_status -eq 10 ]]; then
+    cliphist wipe
+    notify-send "Clipboard cleared"
+elif [[ -n "$output" ]]; then
+    cliphist decode <<<"$output" | wl-copy
+    if [[ $paste -eq 1 ]]; then
+        wtype -M ctrl -k v -m ctrl
+    else
+        notify-send "Copied to clipboard"
+    fi
+fi
