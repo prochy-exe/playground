@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file
 from PIL import Image, ImageEnhance
-import io, numpy as np, random, os
+import io, numpy as np, random, json
 
 app = Flask(__name__)
 
@@ -49,10 +49,11 @@ def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30
         x, y, w, h = selection
     else:
         x, y, w, h = 0, 0, width, height
-    
+
+    x_end = min(x + w, width)
+    y_end = min(y + h, height)
+    random_ratio_variation = random.uniform(0, variation_percentage)
     if direction == "vertical":
-        x_end = min(x + w, width)
-        random_ratio_variation = random.uniform(0, variation_percentage)
 
         for x_pos in range(x, x_end):
             column_melt_start = int((y_end - y) * (1 - (melt_region_percentage + random_ratio_variation)))
@@ -68,7 +69,6 @@ def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30
                     pixels[y_pos, x_pos] = original_pixels[height - 1, x_pos]
 
     elif direction == "horizontal":
-        y_end = min(y + h, height)
         
         for y_pos in range(y, y_end):
             row_melt_start = int((x_end - x) * (1 - (melt_region_percentage + random_ratio_variation)))
@@ -87,7 +87,7 @@ def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30
     
     return datamosh_layer
 
-def random_row_shift(image, horizontal_shift_percentage=5, vertical_shift_percentage=5):
+def random_row_shift(image, horizontal_shift_percentage=5, max_rows_to_shift=5):
     """Randomly shifts the contents of a minimum of 5 rows in the image horizontally."""
     horizontal_shift_percentage = float(horizontal_shift_percentage * 0.01)
     vertical_shift_percentage = float(vertical_shift_percentage * 0.01)
@@ -95,21 +95,21 @@ def random_row_shift(image, horizontal_shift_percentage=5, vertical_shift_percen
         pixels = np.array(image)
         height, width, channels = pixels.shape
         
-        num_rows_to_shift = max(5, round(height * horizontal_shift_percentage))
+        num_rows_to_shift = random.randint(2, max_rows_to_shift)
         
         row_indices = random.sample(range(height), num_rows_to_shift)
         shifted_pixels = pixels.copy()
-        horizontal_shift = random.randint(-int(width * vertical_shift_percentage), int(width * vertical_shift_percentage))
+        horizontal_shift = random.randint(-int(width * horizontal_shift_percentage), int(width * horizontal_shift_percentage))
         for row_index in row_indices:
             if horizontal_shift > 0:
                 shifted_pixels[row_index, :-horizontal_shift] = pixels[row_index, horizontal_shift:]
                 shifted_pixels[row_index, -horizontal_shift:] = pixels[row_index, -horizontal_shift:]  
-            elif horizontal_shift < 0:  
+            if horizontal_shift < 0:  
                 shifted_pixels[row_index, -horizontal_shift:] = pixels[row_index, :-horizontal_shift]
                 shifted_pixels[row_index, :horizontal_shift] = pixels[row_index, :horizontal_shift]  
         return Image.fromarray(np.clip(shifted_pixels, 0, 255).astype(np.uint8), 'RGBA')
     except:
-        return random_row_shift(image, horizontal_shift_percentage, vertical_shift_percentage)
+        return random_row_shift(image, horizontal_shift_percentage, max_rows_to_shift)
 
 def adjust_color(image):
     r, g, b, a = image.split()
@@ -214,17 +214,33 @@ def process_image(image):
     enhancer = ImageEnhance.Sharpness(img)
     img = enhancer.enhance(sharpness)
 
+    layers = []
+
     # Apply filters
     if apply_stutter:
         img = apply_stuttery_effect(img, stutter_frames)
     if apply_datamosh:
-        img = apply_datamosh_effect(img, datamosh_direction, datamosh_melt_region_percentage, datamosh_variation_percentage, datamosh_max_shift)
+        layers.append(apply_datamosh_effect(img, datamosh_direction, datamosh_melt_region_percentage, datamosh_variation_percentage, datamosh_max_shift))
     if apply_pink_purple:
         img = adjust_color(img)
     if apply_random_row_shift:
-        img = random_row_shift(img, horizontal_shift_percentage, vertical_shift_percentage)
+        img = random_row_shift(img, horizontal_shift_percentage, max_rows_to_shift)
     if apply_byte_corruption:
         img = byte_corruption(img, corruption_amount, jpeg_header_size)
+
+    for selection in selections:
+        selection = selections[selection]
+        selection_coords = selection['x'], selection['y'], selection['width'], selection['height']
+        if selection['apply_datamosh_selection']:
+            layers.append(apply_datamosh_effect(img, selection['datamosh_selection_direction'], selection['datamosh_selection_melt_region_percentage'], selection['datamosh_selection_variation_percentage'], selection['datamosh_selection_max_shift'], selection_coords))
+        if selection['apply_corrupt_selection']:
+            layers.append(apply_corrupt_effect(img, selection['corrupt_selection_direction'], selection_coords))
+        if selection['apply_melt_selection']:
+            layers.append(apply_melt_effect(img, selection['melt_selection_amount'], selection['melt_selection_direction'], selection_coords))
+
+    if layers:
+        for layer in layers:
+            img = Image.alpha_composite(img, layer)
     
     return img
 
@@ -238,8 +254,8 @@ def process():
         apply_stutter, stutter_frames, apply_datamosh, \
         datamosh_direction, datamosh_melt_region_percentage, datamosh_variation_percentage, \
         datamosh_max_shift, apply_pink_purple, apply_random_row_shift, \
-        horizontal_shift_percentage, vertical_shift_percentage, apply_byte_corruption, \
-        corruption_amount, jpeg_header_size
+        horizontal_shift_percentage, max_rows_to_shift, apply_byte_corruption, \
+        corruption_amount, jpeg_header_size, selections
         
     if 'image' not in request.files:
         return "No file uploaded", 400
@@ -269,12 +285,12 @@ def process():
     apply_random_row_shift = request.form.get('apply_random_row_shift') == 'true'
     if apply_random_row_shift:
         horizontal_shift_percentage = int(request.form.get('horizontal_shift_percentage', 5))
-        vertical_shift_percentage = int(request.form.get('vertical_shift_percentage', 5))
+        max_rows_to_shift = int(request.form.get('max_rows_to_shift', 5))
     apply_byte_corruption = request.form.get('apply_byte_corruption') == 'true'
     if apply_byte_corruption:
         corruption_amount = int(request.form.get('corruption_amount', 10))
         jpeg_header_size = int(request.form.get('jpeg_header_size', 50))
-    
+    selections = json.loads(request.form.get('selections', r'{}'))
     
     processed_img = process_image(image)
     

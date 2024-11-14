@@ -120,10 +120,10 @@
             
                     <label for="random-row-shift-checkbox">Random Row Shift:</label>
                     <input type="checkbox" id="random-row-shift-checkbox" name="random-row-shift-checkbox"><br>
-                    <label for="random-row-shift-vertical-slider">Vertical:</label>
-                    <input type="range" id="random-row-shift-vertical-slider" name="random-row-shift-vertical-slider" min="0" max="100" step="1" value="5"><br>
-                    <label for="random-row-shift-horizontal-slider">Horizontal:</label>
-                    <input type="range" id="random-row-shift-horizontal-slider" name="random-row-shift-horizontal-slider" min="0" max="100" step="1" value="5"><br><br>
+                    <label for="random-row-shift-horizontal-slider">Horizontal row shift:</label>
+                    <input type="range" id="random-row-shift-horizontal-slider" name="random-row-shift-horizontal-slider" min="0" max="100" step="1" value="5"><br>
+                    <label for="random-row-shift-max-rows-slider">Max rows to shift:</label>
+                    <input type="range" id="random-row-shift-max-rows-slider" name="random-row-shift-max-rows-slider" min="5" max="100" step="1" value="5"><br><br>
             
                     <label for="byte-corruption-checkbox">Byte Corruption:</label>
                     <input type="checkbox" id="byte-corruption-checkbox" name="byte-corruption-checkbox"><br>
@@ -133,6 +133,7 @@
                     <input type="range" id="byte-corruption-amount-slider" name="byte-corruption-amount-slider" min="0" max="100" step="1" value="50"><br><br>
                 </form>
                 <button onclick="restoreDefaults()">Restore defaults</button>
+                <button onclick="updateProcessedImage()">Apply Filters</button>
             </div>
             <div>
                 <div>
@@ -164,8 +165,8 @@
                         <option value="horizontal">Horizontal</option>
                         <option value="vertical">Vertical</option>
                     </select><br>
-                    <label for="melt-selection-melt-amount">Melt Amount:</label>
-                    <input type="range" id="melt-selection-melt-amount" name="melt-selection-melt-amount" min="0" max="100" step="1" value="20"><br><br>
+                    <label for="melt-selection-amount">Melt Amount:</label>
+                    <input type="range" id="melt-selection-amount" name="melt-selection-amount" min="0" max="100" step="1" value="20"><br><br>
     
                     <label for="corrupt-selection-checkbox">Corrupt selection:</label>
                     <input type="checkbox" id="corrupt-selection-checkbox" name="corrupt-selection-checkbox"><br>
@@ -174,8 +175,6 @@
                         <option value="horizontal">Horizontal</option>
                         <option value="vertical">Vertical</option>
                     </select><br>
-                    <label for="corrupt-selection-melt-checkbox">Melt corrupted selection:</label>
-                    <input type="checkbox" id="corrupt-selection-melt-checkbox" name="corrupt-selection-melt-checkbox"><br>
                 </div>
             </div>
         </div>
@@ -216,8 +215,8 @@
         const datamoshVariationPercentage = document.getElementById('datamosh-variation-percentage');
         const datamoshMaxShift = document.getElementById('datamosh-max-shift');
         const stutterFrames = document.getElementById('stutter-frames');
-        const randomRowShiftVerticalSlider = document.getElementById('random-row-shift-vertical-slider');
         const randomRowShiftHorizontalSlider = document.getElementById('random-row-shift-horizontal-slider');
+        const randomRowShiftMaxRows = document.getElementById('random-row-shift-max-rows-slider');
         const byteCorruptionCheckbox = document.getElementById('byte-corruption-checkbox');
         const jpegHeaderSizeSlider = document.getElementById('jpeg-header-size-slider');
         const byteCorruptionAmountSlider = document.getElementById('byte-corruption-amount-slider');
@@ -233,13 +232,21 @@
         let selectionsData = {}
         let startX, startY, isDragging = false;
         let selection = {};
+        let selections = {};
         let uploadedImage = null;
 
-        let datamoshSelectionDirection = document.getElementById('datamosh-selection-direction');
-        let datamoshSelectionMeltRegionPercentage = document.getElementById('datamosh-selection-melt-region-percentage');
-        let datamoshSelectionVariationPercentage = document.getElementById('datamosh-selection-variation-percentage');
-        let datamoshSelectionMaxShift = document.getElementById('datamosh-selection-max-shift');
+        const datamoshSelectionCheckbox = document.getElementById('datamosh-selection-checkbox');
+        const datamoshSelectionDirection = document.getElementById('datamosh-selection-direction');
+        const datamoshSelectionMeltRegionPercentage = document.getElementById('datamosh-selection-melt-region-percentage');
+        const datamoshSelectionVariationPercentage = document.getElementById('datamosh-selection-variation-percentage');
+        const datamoshSelectionMaxShift = document.getElementById('datamosh-selection-max-shift');
 
+        const meltSelectionCheckbox = document.getElementById('melt-selection-checkbox');
+        const meltSelectionDirection = document.getElementById('melt-selection-direction');
+        const meltSelectionAmount = document.getElementById('melt-selection-amount');
+
+        const corruptSelectionCheckbox = document.getElementById('corrupt-selection-checkbox');
+        const corruptSelectionDirection = document.getElementById('corrupt-selection-direction');
 
         // Show the original image preview when an image is selected
         imageUpload.onchange = (event) => {
@@ -264,8 +271,9 @@
 
         // Function to scale the selection to real image size
         const getScaledSelection = () => {
-            const scaleX = originalImg.naturalHeight / processedImg.offsetWidth;
-            const scaleY = originalImg.naturalWidth / processedImg.offsetHeight;
+            const scaleX = originalImg.naturalHeight / processedImg.offsetHeight;
+            const scaleY = originalImg.naturalWidth / processedImg.offsetWidth;
+            console.log(scaleX, scaleY)
             const scaledSelection = {
                 x: Math.round(selection.x * scaleX),
                 y: Math.round(selection.y * scaleY),
@@ -391,7 +399,7 @@
             formData.append('apply_random_row_shift', randomRowShiftCheckbox.checked ? 'true' : 'false');
             formData.append('apply_byte_corruption', byteCorruptionCheckbox.checked ? 'true' : 'false');
             formData.append('horizontal_shift_percentage', randomRowShiftHorizontalSlider.value);
-            formData.append('vertical_shift_percentage', randomRowShiftVerticalSlider.value);
+            formData.append('max_rows_to_shift', randomRowShiftMaxRows.value);
             formData.append('corruption_amount', byteCorruptionAmountSlider.value);
             formData.append('jpeg_header_size', jpegHeaderSizeSlider.value);
             formData.append('datamosh_direction', datamoshDirection.value);
@@ -399,7 +407,8 @@
             formData.append('datamosh_variation_percentage', datamoshVariationPercentage.value);
             formData.append('datamosh_max_shift', datamoshMaxShift.value);
             formData.append('stutter_frames', stutterFrames.value);
-            
+            formData.append('selections', JSON.stringify(selections));
+
             const response = await fetch('/process', {
                 method: 'POST',
                 body: formData
@@ -413,24 +422,16 @@
             }
         };
 
-        // Listen for slider changes and update image in real-time
-        brightnessSlider.addEventListener('change', updateProcessedImage);
-        contrastSlider.addEventListener('change', updateProcessedImage);
-        sharpnessSlider.addEventListener('change', updateProcessedImage);
-        datamoshCheckbox.addEventListener('change', updateProcessedImage);
-        stutterCheckbox.addEventListener('change', updateProcessedImage);
-        pinkPurpleCheckbox.addEventListener('change', updateProcessedImage);
-        randomRowShiftCheckbox.addEventListener('change', updateProcessedImage);
-        randomRowShiftHorizontalSlider.addEventListener('change', updateProcessedImage);
-        randomRowShiftVerticalSlider.addEventListener('change', updateProcessedImage);
-        byteCorruptionCheckbox.addEventListener('change', updateProcessedImage);
-        jpegHeaderSizeSlider.addEventListener('change', updateProcessedImage);
-        byteCorruptionAmountSlider.addEventListener('change', updateProcessedImage);
-        datamoshDirection.addEventListener('change', updateProcessedImage);
-        datamoshMeltRegionPercentage.addEventListener('change', updateProcessedImage);
-        datamoshVariationPercentage.addEventListener('change', updateProcessedImage);
-        datamoshMaxShift.addEventListener('change', updateProcessedImage);
-        stutterFrames.addEventListener('change', updateProcessedImage);
+        datamoshSelectionCheckbox.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        datamoshSelectionDirection.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        datamoshSelectionMeltRegionPercentage.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        datamoshSelectionVariationPercentage.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        datamoshSelectionMaxShift.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        meltSelectionCheckbox.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        meltSelectionDirection.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        meltSelectionAmount.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        corruptSelectionCheckbox.addEventListener('change', () => getSelectionData(currentSelectionIndex));
+        corruptSelectionDirection.addEventListener('change', () => getSelectionData(currentSelectionIndex));        
 
         function restoreDefaults() {
             brightnessSlider.value = 0;
@@ -441,7 +442,7 @@
             pinkPurpleCheckbox.checked = false;
             randomRowShiftCheckbox.checked = false;
             randomRowShiftHorizontalSlider.value = 5;
-            randomRowShiftVerticalSlider.value = 5;
+            randomRowShiftMaxRows.value = 5;
             byteCorruptionCheckbox.checked = false;
             jpegHeaderSizeSlider.value = 0;
             byteCorruptionAmountSlider.value = 50;
@@ -450,15 +451,63 @@
             datamoshVariationPercentage.value = 10;
             datamoshMaxShift.value = 500;
             stutterFrames.value = 10;
-            updateProcessedImage();
+        }
+
+        function getSelectionData(selectedIndex) {
+            if (selectedIndex == 0) {
+                return
+            }
+            console.log(selectedIndex)
+            selectedSelection = selectionsData[selectedIndex]["scaledSelection"];
+            return_object = {
+                'x': selectedSelection.x,
+                'y': selectedSelection.y,
+                'width': selectedSelection.width,
+                'height': selectedSelection.height,
+                'apply_datamosh_selection': datamoshSelectionCheckbox.checked,
+                'apply_corrupt_selection': corruptSelectionCheckbox.checked,
+                'apply_melt_selection': meltSelectionCheckbox.checked,
+                'datamosh_selection_direction': datamoshSelectionDirection.value,
+                'datamosh_selection_melt_region_percentage': Number(datamoshSelectionMeltRegionPercentage.value),
+                'datamosh_selection_variation_percentage': Number(datamoshSelectionVariationPercentage.value),
+                'datamosh_selection_max_shift': Number(datamoshSelectionMaxShift.value),
+                'corrupt_selection_direction': corruptSelectionDirection.value,
+                'melt_selection_amount': Number(meltSelectionAmount.value),
+                'melt_selection_direction': meltSelectionDirection.value
+            };
+            selections[selectedIndex] = return_object;
+        }
+
+        function getSelectionDefaultData(selectedIndex) {
+            if (selectedIndex == 0) {
+                return
+            }
+            selectedSelection = selectionsData[selectedIndex]["scaledSelection"];
+            return_object = {
+                'x': selectedSelection.x,
+                'y': selectedSelection.y,
+                'width': selectedSelection.width,
+                'height': selectedSelection.height,
+                'apply_datamosh_selection': false,
+                'apply_corrupt_selection': false,
+                'apply_melt_selection': false,
+                'datamosh_selection_direction': 'horizontal',
+                'datamosh_selection_melt_region_percentage': 30,
+                'datamosh_selection_variation_percentage': 10,
+                'datamosh_selection_max_shift': 500,
+                'corrupt_selection_direction': 'horizontal',
+                'melt_selection_amount': 0,
+                'melt_selection_direction': 'horizontal'
+            };
+            return return_object;
         }
 
         // Function to add a new selection to the dropdown
         const addSelectionToDropdown = (selection) => {
             const option = document.createElement('option');
-            currentSelectionsIndex = Object.keys(selectionsData).length;
-            option.text = `Selection ${currentSelectionsIndex}`;
-            option.value = currentSelectionsIndex;
+            currentSelectionIndex = Object.keys(selectionsData).length;
+            option.text = `Selection ${currentSelectionIndex}`;
+            option.value = currentSelectionIndex;
             selectionDropdown.add(option);
         };
 
@@ -470,6 +519,19 @@
                    obj1.height === obj2.height;
         }
 
+        function updateSelectionValues(selection) {
+            datamoshSelectionCheckbox.checked = selection["apply_datamosh_selection"];
+            corruptSelectionCheckbox.checked = selection["apply_corrupt_selection"];
+            meltSelectionCheckbox.checked = selection["apply_melt_selection"];
+            datamoshSelectionDirection.value = selection["datamosh_selection_direction"];
+            datamoshSelectionMeltRegionPercentage.value = selection["datamosh_selection_melt_region_percentage"];
+            datamoshSelectionVariationPercentage.value = selection["datamosh_selection_variation_percentage"];
+            datamoshSelectionMaxShift.value = selection["datamosh_selection_max_shift"];
+            corruptSelectionDirection.value = selection["corrupt_selection_direction"];
+            meltSelectionAmount.value = selection["melt_selection_amount"];
+            meltSelectionDirection.value = selection["melt_selection_direction"];
+        }
+
         // Function to handle key presses for Ctrl + A
         document.addEventListener('keydown', (event) => {
             if (event.ctrlKey && event.key === 'a') {
@@ -478,7 +540,6 @@
                 const realSelection = getRealSelection();
                 var selectionExists = false;
                 var selectionLength = Object.keys(selectionsData).length;
-                console.log(selectionLength);
                 if (selectionLength > 0) {
                     for (let i = 1; i <= selectionLength; i++) {
                         if (areObjectsEqual(selectionsData[i]["scaledSelection"], scaledSelection)) {
@@ -488,14 +549,15 @@
                     }                    
                 }
                 if (!selectionExists) {
-                    currentSelectionsIndex = selectionLength + 1;
-                    selectionsData[currentSelectionsIndex] = {};
-                    selectionsData[currentSelectionsIndex]["scaledSelection"] = scaledSelection;
-                    selectionsData[currentSelectionsIndex]["realSelection"] = realSelection;
+                    currentSelectionIndex = selectionLength + 1;
+                    selectionsData[currentSelectionIndex] = {};
+                    selectionsData[currentSelectionIndex]["scaledSelection"] = scaledSelection;
+                    selectionsData[currentSelectionIndex]["realSelection"] = realSelection;
+                    console.log(selectionsData);
                     addSelectionToDropdown(scaledSelection);
                     ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                    selections[currentSelectionIndex] = getSelectionDefaultData(currentSelectionIndex)
                 }
-                console.log(selectionsData);
             }
         });
 
@@ -504,8 +566,8 @@
             const selectedIndex = selectionDropdown.selectedIndex;
             if (selectedIndex > 0) {
                 delete selectionsData[selectedIndex];
+                delete selections[selectedIndex];
                 selectionDropdown.remove(selectedIndex); // Remove from dropdown
-                console.log(selectedIndex)
                 if (selectedIndex == 1) {
                     selectionDropdown.selectedIndex = 0;
                     selectionDropdown.dispatchEvent(new Event('change'));
@@ -523,6 +585,9 @@
                 selectionOptions.style.display = 'block';
                 currentSelectionIndex = selectedIndex;
                 realSelection = selectionsData[currentSelectionIndex]["realSelection"];
+                console.log(currentSelectionIndex)
+                console.log(selections[currentSelectionIndex])
+                updateSelectionValues(selections[currentSelectionIndex]);
                 ctx.strokeStyle = 'red';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(realSelection.x, realSelection.y, realSelection.width, realSelection.height);
