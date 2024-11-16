@@ -90,14 +90,11 @@ def apply_datamosh_effect(image, direction="vertical", melt_region_percentage=30
 def random_row_shift(image, horizontal_shift_percentage=5, max_rows_to_shift=5):
     """Randomly shifts the contents of a minimum of 5 rows in the image horizontally."""
     horizontal_shift_percentage = float(horizontal_shift_percentage * 0.01)
-    vertical_shift_percentage = float(vertical_shift_percentage * 0.01)
     try: 
         pixels = np.array(image)
         height, width, channels = pixels.shape
-        
-        num_rows_to_shift = random.randint(2, max_rows_to_shift)
-        
-        row_indices = random.sample(range(height), num_rows_to_shift)
+                
+        row_indices = random.sample(range(height), max_rows_to_shift)
         shifted_pixels = pixels.copy()
         horizontal_shift = random.randint(-int(width * horizontal_shift_percentage), int(width * horizontal_shift_percentage))
         for row_index in row_indices:
@@ -225,8 +222,6 @@ def process_image(image):
         img = adjust_color(img)
     if apply_random_row_shift:
         img = random_row_shift(img, horizontal_shift_percentage, max_rows_to_shift)
-    if apply_byte_corruption:
-        img = byte_corruption(img, corruption_amount, jpeg_header_size)
 
     for selection in selections:
         selection = selections[selection]
@@ -241,6 +236,9 @@ def process_image(image):
     if layers:
         for layer in layers:
             img = Image.alpha_composite(img, layer)
+
+    if apply_byte_corruption:
+        img = byte_corruption(img, corruption_amount, jpeg_header_size)
     
     return img
 
